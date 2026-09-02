@@ -3,7 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 from pymongo import MongoClient
 
-# 50 Globally Trending Job & Tech Platforms (RSS / Public Endpoints)
+# 50 Globally Trending Job & Tech Platforms
 PLATFORMS_FEED_URLS = [
     "https://weworkremotely.com/remote-jobs.rss",
     "https://remote.co/remote-jobs/feed/",
@@ -57,29 +57,35 @@ PLATFORMS_FEED_URLS = [
     "https://www.crunchboard.com/jobs.rss"
 ]
 
+# Keywords required to filter out tutorials, guides, and non-tech noise
+VALID_KEYWORDS = [
+    "software", "engineer", "developer", "frontend", "backend", 
+    "full stack", "full-stack", "web", "database", "intern", 
+    "internship", "react", "node", "javascript", "typescript", 
+    "python", "php", "laravel", "mongodb", "sql", "remote"
+]
+
+def is_valid_job(title):
+    title_lower = title.lower()
+    return any(keyword in title_lower for keyword in VALID_KEYWORDS)
+
 def send_discord_alert(job_title, job_url):
     webhook_url = os.environ.get("DISCORD_WEBHOOK_URL")
     if not webhook_url:
-        print("Discord webhook URL missing.")
         return
     
     payload = {
-        "content": f"🚨 **New Remote Job Alert!**\n**Title:** {job_title}\n**Link:** {job_url}"
+        "content": f"🚨 **Verified Tech Job / Internship Alert!**\n**Title:** {job_title}\n**Link:** {job_url}"
     }
     
     try:
-        response = requests.post(webhook_url, json=payload)
-        if response.status_code == 204:
-            print(f"Discord alert sent successfully for: {job_title}")
-        else:
-            print(f"Failed to send Discord alert: {response.text}")
+        requests.post(webhook_url, json=payload)
     except Exception as e:
         print(f"Error sending Discord message: {e}")
 
 def run_pipeline():
     mongo_uri = os.environ.get("MONGO_URI")
     if not mongo_uri:
-        print("MONGO_URI is not set.")
         return
 
     client = MongoClient(mongo_uri)
@@ -88,7 +94,7 @@ def run_pipeline():
     jobs_collection.create_index("url", unique=True)
 
     new_jobs_found = 0
-    print("Checking 50 global platforms for new remote job opportunities...")
+    print("Scanning platforms with strict IT & internship filters...")
     
     for url in PLATFORMS_FEED_URLS:
         try:
@@ -100,9 +106,13 @@ def run_pipeline():
             soup = BeautifulSoup(response.content, 'xml')
             items = soup.find_all('item')
             
-            for item in items[:5]:
-                title = item.title.text if item.title else "Software Role"
+            for item in items[:10]:
+                title = item.title.text if item.title else ""
                 link = item.link.text if item.link else url
+                
+                # Apply strict filtering logic
+                if not title or not is_valid_job(title):
+                    continue
                 
                 job_doc = {
                     "title": title,
@@ -113,14 +123,14 @@ def run_pipeline():
                 try:
                     jobs_collection.insert_one(job_doc)
                     new_jobs_found += 1
-                    print(f"New Job Added: {title}")
+                    print(f"Filtered Tech Job Added: {title}")
                     send_discord_alert(title, link)
                 except Exception:
                     pass
         except Exception:
             continue
 
-    print(f"Job scanning complete. Total new listings added: {new_jobs_found}")
+    print(f"Scanning complete. Total valid tech listings added: {new_jobs_found}")
 
 if __name__ == "__main__":
     run_pipeline()
