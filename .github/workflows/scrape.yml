@@ -2,7 +2,7 @@ name: Automated Job Scraper
 
 on:
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -20,8 +20,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests pandas
+          pip install requests beautifulsoup4 pymongo lxml
 
       - name: Run job scraper script
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
           python scraper.py
