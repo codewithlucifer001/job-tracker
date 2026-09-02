@@ -57,25 +57,68 @@ PLATFORMS_FEED_URLS = [
     "https://www.crunchboard.com/jobs.rss"
 ]
 
-# Keywords required to filter out tutorials, guides, and non-tech noise
-VALID_KEYWORDS = [
-    "software", "engineer", "developer", "frontend", "backend", 
-    "full stack", "full-stack", "web", "database", "intern", 
-    "internship", "react", "node", "javascript", "typescript", 
-    "python", "php", "laravel", "mongodb", "sql", "remote"
-]
+# Comprehensive domain-based keywords covering full-time, internships, and all IT stacks
+ROLE_DOMAINS = {
+    "Fullstack": [
+        "full stack developer", "fullstack engineer", "full-stack software engineer", 
+        "mern stack developer", "mean stack developer", "full stack web developer", 
+        "jamstack developer", "full stack swe", "junior fullstack", "senior fullstack"
+    ],
+    "Frontend": [
+        "frontend developer", "front-end engineer", "ui developer", "react developer", 
+        "next.js developer", "vue.js developer", "angular developer", "javascript developer", 
+        "typescript developer", "web developer", "frontend engineer", "ui/ux developer", 
+        "react native developer", "tailwind css developer"
+    ],
+    "Backend": [
+        "backend developer", "back-end engineer", "backend software engineer", "api developer", 
+        "node.js developer", "express.js developer", "rest api developer", "graphql developer", 
+        "microservices developer", "server-side developer", "backend engineer intern"
+    ],
+    "Software Engineering": [
+        "software engineer", "software developer", "sde", "swe", "software engineering intern", 
+        "associate software engineer", "junior software engineer", "software development engineer", 
+        "application developer", "systems engineer", "software engineer i", "sde intern", 
+        "graduate software engineer", "entry level software engineer"
+    ],
+    "Database & Data": [
+        "database developer", "database engineer", "sql developer", "database administrator", 
+        "mysql developer", "postgresql developer", "mongodb developer", "database intern", 
+        "data engineer", "nosql developer"
+    ],
+    "Python & Backend": [
+        "python developer", "python engineer", "python backend developer", "django developer", 
+        "flask developer", "fastapi developer", "python software engineer"
+    ],
+    "C++ & Systems": [
+        "c++ developer", "c++ engineer", "c/c++ developer", "embedded c++ engineer", 
+        "c++ software engineer", "systems programmer c++", "c++ intern"
+    ],
+    "Java & Spring": [
+        "java developer", "java engineer", "java software engineer", "spring boot developer", 
+        "java backend developer", "j2ee developer", "java microservices developer", "java intern"
+    ],
+    "PHP & Laravel": [
+        "php developer", "laravel developer", "php engineer", "laravel backend developer", 
+        "php web developer", "laravel full stack developer", "wordpress developer", "php laravel intern"
+    ]
+}
 
-def is_valid_job(title):
+def match_job_domain(title):
     title_lower = title.lower()
-    return any(keyword in title_lower for keyword in VALID_KEYWORDS)
+    for domain, keywords in ROLE_DOMAINS.items():
+        for kw in keywords:
+            if kw in title_lower:
+                return domain
+    return None
 
-def send_discord_alert(job_title, job_url):
+def send_discord_alert(job_title, job_url, domain):
     webhook_url = os.environ.get("DISCORD_WEBHOOK_URL")
     if not webhook_url:
         return
     
     payload = {
-        "content": f"🚨 **Verified Tech Job / Internship Alert!**\n**Title:** {job_title}\n**Link:** {job_url}"
+        "content": f"🚨 **New {domain} Job/Internship Alert!**\n**Title:** {job_title}\n**Domain:** {domain}\n**Link:** {job_url}"
     }
     
     try:
@@ -94,7 +137,7 @@ def run_pipeline():
     jobs_collection.create_index("url", unique=True)
 
     new_jobs_found = 0
-    print("Scanning platforms with strict IT & internship filters...")
+    print("Scanning platforms with comprehensive IT, full-time, and internship filters...")
     
     for url in PLATFORMS_FEED_URLS:
         try:
@@ -106,31 +149,32 @@ def run_pipeline():
             soup = BeautifulSoup(response.content, 'xml')
             items = soup.find_all('item')
             
-            for item in items[:10]:
+            for item in items[:15]:
                 title = item.title.text if item.title else ""
                 link = item.link.text if item.link else url
                 
-                # Apply strict filtering logic
-                if not title or not is_valid_job(title):
+                matched_domain = match_job_domain(title)
+                if not matched_domain:
                     continue
                 
                 job_doc = {
                     "title": title,
                     "url": link,
+                    "domain": matched_domain,
                     "source": url
                 }
                 
                 try:
                     jobs_collection.insert_one(job_doc)
                     new_jobs_found += 1
-                    print(f"Filtered Tech Job Added: {title}")
-                    send_discord_alert(title, link)
+                    print(f"Matched [{matched_domain}] Job Added: {title}")
+                    send_discord_alert(title, link, matched_domain)
                 except Exception:
                     pass
         except Exception:
             continue
 
-    print(f"Scanning complete. Total valid tech listings added: {new_jobs_found}")
+    print(f"Scanning complete. Total targeted listings added: {new_jobs_found}")
 
 if __name__ == "__main__":
     run_pipeline()
