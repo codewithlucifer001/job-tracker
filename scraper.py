@@ -137,7 +137,7 @@ def run_pipeline():
     jobs_collection.create_index("url", unique=True)
 
     new_jobs_found = 0
-    print("Scanning platforms with comprehensive IT, full-time, and internship filters...")
+    print("Scanning platforms with expanded high-volume item limits...")
     
     for url in PLATFORMS_FEED_URLS:
         try:
@@ -149,7 +149,8 @@ def run_pipeline():
             soup = BeautifulSoup(response.content, 'xml')
             items = soup.find_all('item')
             
-            for item in items[:15]:
+            # Scaled up item slice limit from 15 to 50 to maximize hourly volume
+            for item in items[:50]:
                 title = item.title.text if item.title else ""
                 link = item.link.text if item.link else url
                 
@@ -174,7 +175,7 @@ def run_pipeline():
         except Exception:
             continue
 
-    print(f"Scanning complete. Total targeted listings added: {new_jobs_found}")
+    print(f"Scanning complete. Total high-volume targeted listings added: {new_jobs_found}")
 
 if __name__ == "__main__":
     run_pipeline()
